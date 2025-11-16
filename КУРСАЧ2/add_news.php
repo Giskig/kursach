@@ -1,6 +1,9 @@
 <?php
-require_once 'config.php';  // Первым - настройки БД и сессии
-require_once 'auth.php';    // Вторым - функции авторизации
+require_once 'config.php';
+require_once 'auth.php';
+
+// Проверка авторизации с таймаутом
+requireAuth(); // Эта функция теперь проверяет и таймаут
 
 if (!isLoggedIn() || !canPublishNews()) {
     header('Location: index.php');
@@ -28,63 +31,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['title'])) {
     } elseif (strlen($text) > 2000) {
         $error = "Текст новости не должен превышать 2000 символов!";
     } else {
-        // Обработка загрузки изображения
-        $image_name = '';
-        if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
-            $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-            $file_type = $_FILES['image']['type'];
-            
-            if (in_array($file_type, $allowed_types)) {
-                // Создаем папку для изображений если её нет
-                if (!is_dir('images/news')) {
-                    mkdir('images/news', 0777, true);
-                }
-                
-                // Генерируем уникальное имя файла
-                $file_extension = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
-                $image_name = uniqid() . '.' . $file_extension;
-                $upload_path = 'images/news/' . $image_name;
-                
-                if (!move_uploaded_file($_FILES['image']['tmp_name'], $upload_path)) {
-                    $error = "Ошибка при загрузке изображения";
-                }
-            } else {
-                $error = "Разрешены только файлы JPG, PNG, GIF и WebP";
+        // Проверка существования категории
+        $category_exists = false;
+        foreach ($categories as $category) {
+            if ($category['categories_id'] == $category_id) {
+                $category_exists = true;
+                break;
             }
         }
         
-        if (empty($error)) {
-            // Учителя публикуют сразу (статус 2), администраторы тоже
-            $status_id = 2; // опубликованно
-            $role_id = getUserRole();
-            
-            try {
-                // Добавляем поле image в запрос
-                $stmt = $pdo->prepare("
-                    INSERT INTO news (id_user, categories_id, id_status, role_id, title, text, image, date_relise) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, CURDATE())
-                ");
+        if (!$category_exists) {
+            $error = "Выбранная категория не существует!";
+        } else {
+            // Обработка загрузки изображения
+            $image_name = '';
+            if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+                $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+                $file_type = $_FILES['image']['type'];
                 
-                if ($stmt->execute([$user_id, $category_id, $status_id, $role_id, $title, $text, $image_name])) {
-                    $news_id = $pdo->lastInsertId();
-                    $success = "Новость успешно опубликована!";
-                    
-                    // Записываем изменение в историю (если нужно)
-                    try {
-                        $stmt_changing = $pdo->prepare("INSERT INTO changing (id_user, id_news, date_time) VALUES (?, ?, NOW())");
-                        $stmt_changing->execute([$user_id, $news_id]);
-                    } catch (Exception $e) {
-                        // Игнорируем ошибки с таблицей changing
+                if (in_array($file_type, $allowed_types)) {
+                    // Создаем папку для изображений если её нет
+                    if (!is_dir('images/news')) {
+                        mkdir('images/news', 0777, true);
                     }
                     
-                    $_POST = array(); // Очищаем поля формы
+                    // Генерируем уникальное имя файла
+                    $file_extension = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
+                    $image_name = uniqid() . '.' . $file_extension;
+                    $upload_path = 'images/news/' . $image_name;
+                    
+                    if (!move_uploaded_file($_FILES['image']['tmp_name'], $upload_path)) {
+                        $error = "Ошибка при загрузке изображения";
+                    }
                 } else {
-                    $error = "Ошибка при публикации новости";
+                    $error = "Разрешены только файлы JPG, PNG, GIF и WebP";
                 }
+            }
+            
+            if (empty($error)) {
+                // Учителя публикуют сразу (статус 2), администраторы тоже
+                $status_id = 2; // опубликованно
+                $role_id = getUserRole();
                 
-            } catch(PDOException $e) {
-                $error = "Ошибка базы данных: " . $e->getMessage();
-                logError("Add news error: " . $e->getMessage());
+                try {
+                    // Добавляем поле image в запрос
+                    $stmt = $pdo->prepare("
+                        INSERT INTO news (id_user, categories_id, id_status, role_id, title, text, image, date_relise) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, CURDATE())
+                    ");
+                    
+                    if ($stmt->execute([$user_id, $category_id, $status_id, $role_id, $title, $text, $image_name])) {
+                        $news_id = $pdo->lastInsertId();
+                        $success = "Новость успешно опубликована!";
+                        
+                        // Записываем изменение в историю (если нужно)
+                        try {
+                            $stmt_changing = $pdo->prepare("INSERT INTO changing (id_user, id_news, date_time) VALUES (?, ?, NOW())");
+                            $stmt_changing->execute([$user_id, $news_id]);
+                        } catch (Exception $e) {
+                            // Игнорируем ошибки с таблицей changing
+                        }
+                        
+                        $_POST = array(); // Очищаем поля формы
+                    } else {
+                        $error = "Ошибка при публикации новости";
+                    }
+                    
+                } catch(PDOException $e) {
+                    $error = "Ошибка базы данных: " . $e->getMessage();
+                    logError("Add news error: " . $e->getMessage());
+                }
             }
         }
     }

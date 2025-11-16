@@ -1,6 +1,31 @@
 <?php
 require_once 'config.php';
 
+// Функция проверки таймаута сессии
+function checkSessionTimeout() {
+    $timeout = 1800; // 30 минут в секундах
+    
+    if (isset($_SESSION['LAST_ACTIVITY']) && (time() - $_SESSION['LAST_ACTIVITY'] > $timeout)) {
+        // Сессия истекла
+        session_unset();
+        session_destroy();
+        header('Location: login.php?reason=timeout');
+        exit;
+    }
+    
+    // Обновляем время активности
+    $_SESSION['LAST_ACTIVITY'] = time();
+}
+
+function requireAuth() {
+    if (!isset($_SESSION['user_id'])) {
+        header('Location: login.php?auth_required=1');
+        exit;
+    }
+    // Проверяем таймаут при каждом запросе
+    checkSessionTimeout();
+}
+
 function loginUser($login, $password) {
     global $pdo;
     
@@ -14,6 +39,7 @@ function loginUser($login, $password) {
         $_SESSION['user_lastname'] = $user['lastname'];
         $_SESSION['role_id'] = $user['role_id'];
         $_SESSION['login'] = $user['login'];
+        $_SESSION['LAST_ACTIVITY'] = time(); // Устанавливаем время входа
         
         // Записываем вход в историю
         $stmt = $pdo->prepare("INSERT INTO login_history (id_user, entry_date) VALUES (?, CURDATE())");
@@ -76,7 +102,7 @@ function canManageNews() {
 
 function logout() {
     session_destroy();
-    header('Location: index.php');
+    header('Location: login.php');
     exit;
 }
 ?>

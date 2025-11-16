@@ -38,7 +38,7 @@ require_once 'header.php';
     <div class="news-detail">
         <!-- Хлебные крошки -->
         <div class="breadcrumbs">
-            <a href="news.php">← Все новости</a>
+            <a href="index.php">← на главную</a>
         </div>
 
         <!-- Заголовок новости -->

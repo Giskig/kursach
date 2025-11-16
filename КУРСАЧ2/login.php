@@ -9,11 +9,16 @@ if (isLoggedIn()) {
 }
 
 $error = '';
+$timeout_message = '';
+
+// Показываем сообщение о таймауте сессии
+if (isset($_GET['reason']) && $_GET['reason'] == 'timeout') {
+    $timeout_message = "Ваша сессия истекла из-за долгого бездействия. Пожалуйста, войдите снова.";
+}
 
 // Обработка формы входа
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     if (loginUser($_POST['login'], $_POST['password'])) {
-        // Успешный вход - перенаправляем на главную
         header('Location: index.php');
         exit;
     } else {
@@ -29,6 +34,10 @@ require_once 'header.php';
     <div>
         <div>
             <h2>Вход в систему</h2>
+            
+            <?php if ($timeout_message): ?>
+                <div class="alert alert-warning"><?php echo $timeout_message; ?></div>
+            <?php endif; ?>
             
             <?php if ($error): ?>
                 <div class="alert alert-error"><?php echo $error; ?></div>
@@ -52,27 +61,6 @@ require_once 'header.php';
 
             <div>
                 <a href="index.php">← Вернуться на главную</a>
-            </div>
-
-            <div>
-                <h4>Тестовые аккаунты:</h4>
-                <div>
-                    <div>
-                        <strong>Администратор</strong>
-                        <span>: admin</span>
-                        <span>Пароль: admin123</span>
-                    </div>
-                    <div>
-                        <strong>Преподаватель</strong>
-                        <span>: teacher</span>
-                        <span>Пароль: teacher123</span>
-                    </div>
-                    <div>
-                        <strong>Ученик</strong>
-                        <span>: student</span>
-                        <span>Пароль: student123</span>
-                    </div>
-                </div>
             </div>
         </div>
     </div>
